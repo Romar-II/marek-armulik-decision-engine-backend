@@ -8,6 +8,9 @@ import ee.taltech.inbankbackend.exceptions.InvalidPersonalCodeException;
 import ee.taltech.inbankbackend.exceptions.NoValidLoanException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.Period;
+
 /**
  * A service class that provides a method for calculating an approved loan amount and period for a customer.
  * The loan amount is calculated based on the customer's credit modifier,
@@ -27,19 +30,20 @@ public class DecisionEngine {
      * The loan amount must be between 2000 and 10000€ months (inclusive).
      *
      * @param personalCode ID code of the customer that made the request.
-     * @param loanAmount Requested loan amount
-     * @param loanPeriod Requested loan period
+     * @param loanAmount   Requested loan amount
+     * @param loanPeriod   Requested loan period
+     * @param loanCountry  Requested country requested
      * @return A Decision object containing the approved loan amount and period, and an error message (if any)
      * @throws InvalidPersonalCodeException If the provided personal ID code is invalid
-     * @throws InvalidLoanAmountException If the requested loan amount is invalid
-     * @throws InvalidLoanPeriodException If the requested loan period is invalid
-     * @throws NoValidLoanException If there is no valid loan found for the given ID code, loan amount and loan period
+     * @throws InvalidLoanAmountException   If the requested loan amount is invalid
+     * @throws InvalidLoanPeriodException   If the requested loan period is invalid
+     * @throws NoValidLoanException         If there is no valid loan found for the given ID code, loan amount and loan period
      */
-    public Decision calculateApprovedLoan(String personalCode, Long loanAmount, int loanPeriod)
+    public Decision calculateApprovedLoan(String personalCode, Long loanAmount, int loanPeriod, String loanCountry)
             throws InvalidPersonalCodeException, InvalidLoanAmountException, InvalidLoanPeriodException,
             NoValidLoanException {
         try {
-            verifyInputs(personalCode, loanAmount, loanPeriod);
+            verifyInputs(personalCode, loanAmount, loanPeriod, loanCountry);
         } catch (Exception e) {
             return new Decision(null, null, e.getMessage());
         }
@@ -102,17 +106,21 @@ public class DecisionEngine {
      * If inputs are invalid, then throws corresponding exceptions.
      *
      * @param personalCode Provided personal ID code
-     * @param loanAmount Requested loan amount
-     * @param loanPeriod Requested loan period
+     * @param loanAmount   Requested loan amount
+     * @param loanPeriod   Requested loan period
+     * @param loanCountry  Country of loan request
      * @throws InvalidPersonalCodeException If the provided personal ID code is invalid
-     * @throws InvalidLoanAmountException If the requested loan amount is invalid
-     * @throws InvalidLoanPeriodException If the requested loan period is invalid
+     * @throws InvalidLoanAmountException   If the requested loan amount is invalid
+     * @throws InvalidLoanPeriodException   If the requested loan period is invalid
      */
-    private void verifyInputs(String personalCode, Long loanAmount, int loanPeriod)
+    private void verifyInputs(String personalCode, Long loanAmount, int loanPeriod, String loanCountry)
             throws InvalidPersonalCodeException, InvalidLoanAmountException, InvalidLoanPeriodException {
 
-        if (!validator.isValid(personalCode)) {
-            throw new InvalidPersonalCodeException("Invalid personal ID code!");
+//        if (!validator.isValid(personalCode)) {
+//            throw new InvalidPersonalCodeException("Invalid personal ID code!");
+//        }
+        if (this.isInvalidAge(personalCode, loanPeriod, loanCountry)) {
+            throw new InvalidLoanAmountException("Loan cannot be issued due to age restrictions!");
         }
         if (!(DecisionEngineConstants.MINIMUM_LOAN_AMOUNT <= loanAmount)
                 || !(loanAmount <= DecisionEngineConstants.MAXIMUM_LOAN_AMOUNT)) {
@@ -122,6 +130,51 @@ public class DecisionEngine {
                 || !(loanPeriod <= DecisionEngineConstants.MAXIMUM_LOAN_PERIOD)) {
             throw new InvalidLoanPeriodException("Invalid loan period!");
         }
-
     }
+
+
+    private boolean isInvalidAge(String personalCode, int loanPeriod, String loanCountry) {
+        LocalDate birthDate = getBirthDate(personalCode);
+        LocalDate currentDate = LocalDate.now();
+
+        if (this.isUnderAge(birthDate, currentDate)) {
+            return true;
+        } else if (isOverDesiredAge(birthDate, currentDate, loanPeriod, loanCountry)) {
+            return true;
+        }
+        return false;
+    }
+
+    private static LocalDate getBirthDate(String personalCode) {
+        int birthYearSuffix = Integer.parseInt(personalCode.substring(0, 1));
+        int birthYearPrefix = switch (birthYearSuffix) {
+            case 1, 2 -> 18;
+            case 3, 4 -> 19;
+            default -> 20;
+        };
+        int birthYear = Integer.parseInt(birthYearPrefix + personalCode.substring(1, 3));
+        int birthMonth = Integer.parseInt(personalCode.substring(3, 5));
+        int birthDay = Integer.parseInt(personalCode.substring(5, 7));
+
+        LocalDate birthDate = LocalDate.of(birthYear, birthMonth, birthDay);
+        return birthDate;
+    }
+
+    private boolean isUnderAge(LocalDate birthDate, LocalDate currentDate) {
+        return Period.between(birthDate, currentDate).getYears() < DecisionEngineConstants.AGE_OF_MAJORITY;
+    }
+
+    private boolean isOverDesiredAge(LocalDate birthDate, LocalDate currentDate, int loanPeriod, String loanCountry) {
+        Period age = Period.between(birthDate, currentDate);
+        double ageInYears = age.getYears() + (age.getMonths() / 12.0) + (age.getDays() / 365.0);
+        int loanPeriodInYears = loanPeriod / 12;
+        double lifeExpectancy = switch (loanCountry) {
+            case "Latvia" -> DecisionEngineConstants.LIFE_EXPECTANCY_IN_YEARS_LATVIA;
+            case "Lithuania" -> DecisionEngineConstants.LIFE_EXPECTANCY_IN_YEARS_LITHUANIA;
+            default -> DecisionEngineConstants.LIFE_EXPECTANCY_IN_YEARS_ESTONIA;
+        };
+        return ageInYears + loanPeriodInYears > lifeExpectancy;
+    }
+
+
 }
