@@ -37,6 +37,7 @@ The request body must contain the following fields:
 - personalCode: The customer's personal ID code.
 - loanAmount: The requested loan amount.
 - loanPeriod: The requested loan period.
+- loanCountry: The country from which loan is requested
 
 **Request example:**
 
@@ -44,7 +45,8 @@ The request body must contain the following fields:
 {
 "personalCode": "50307172740",
 "loanAmount": "5000",
-"loanPeriod": "24"
+"loanPeriod": "24",
+"loanCountry": "Estonia"
 }
 ```
 

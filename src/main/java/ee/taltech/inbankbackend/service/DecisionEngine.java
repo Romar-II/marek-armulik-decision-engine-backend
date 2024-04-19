@@ -119,7 +119,7 @@ public class DecisionEngine {
 //        if (!validator.isValid(personalCode)) {
 //            throw new InvalidPersonalCodeException("Invalid personal ID code!");
 //        }
-        if (this.isInvalidAge(personalCode, loanPeriod, loanCountry)) {
+        if (this.isInvalidAge(personalCode, loanCountry)) {
             throw new InvalidLoanAmountException("Loan cannot be issued due to age restrictions!");
         }
         if (!(DecisionEngineConstants.MINIMUM_LOAN_AMOUNT <= loanAmount)
@@ -133,13 +133,13 @@ public class DecisionEngine {
     }
 
 
-    private boolean isInvalidAge(String personalCode, int loanPeriod, String loanCountry) {
+    private boolean isInvalidAge(String personalCode, String loanCountry) {
         LocalDate birthDate = getBirthDate(personalCode);
         LocalDate currentDate = LocalDate.now();
 
         if (this.isUnderAge(birthDate, currentDate)) {
             return true;
-        } else if (isOverDesiredAge(birthDate, currentDate, loanPeriod, loanCountry)) {
+        } else if (isOverDesiredAge(birthDate, currentDate, loanCountry)) {
             return true;
         }
         return false;
@@ -156,18 +156,18 @@ public class DecisionEngine {
         int birthMonth = Integer.parseInt(personalCode.substring(3, 5));
         int birthDay = Integer.parseInt(personalCode.substring(5, 7));
 
-        LocalDate birthDate = LocalDate.of(birthYear, birthMonth, birthDay);
-        return birthDate;
+        return LocalDate.of(birthYear, birthMonth, birthDay);
     }
 
     private boolean isUnderAge(LocalDate birthDate, LocalDate currentDate) {
         return Period.between(birthDate, currentDate).getYears() < DecisionEngineConstants.AGE_OF_MAJORITY;
     }
 
-    private boolean isOverDesiredAge(LocalDate birthDate, LocalDate currentDate, int loanPeriod, String loanCountry) {
+    private boolean isOverDesiredAge(LocalDate birthDate, LocalDate currentDate, String loanCountry) {
         Period age = Period.between(birthDate, currentDate);
         double ageInYears = age.getYears() + (age.getMonths() / 12.0) + (age.getDays() / 365.0);
-        int loanPeriodInYears = loanPeriod / 12;
+        int loanPeriodInYears = DecisionEngineConstants.MAXIMUM_LOAN_PERIOD / 12;
+        //for more precise loan calculator we can use int loanPeriodInYears = loanPeriod / 12;
         double lifeExpectancy = switch (loanCountry) {
             case "Latvia" -> DecisionEngineConstants.LIFE_EXPECTANCY_IN_YEARS_LATVIA;
             case "Lithuania" -> DecisionEngineConstants.LIFE_EXPECTANCY_IN_YEARS_LITHUANIA;
